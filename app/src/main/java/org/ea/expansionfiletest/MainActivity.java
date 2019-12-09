@@ -36,6 +36,8 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.VideoView;
 
@@ -45,21 +47,13 @@ import java.io.FileReader;
 import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity implements IDownloaderClient {
+    private static final String FILENAME = "main." +BuildConfig.VERSION_CODE+ "." + BuildConfig.APPLICATION_ID + ".obb";
     private static final int MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 1337;
-    private static final String BASE64_PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAh1qmkAXeeu1TGKeiVEnPd8/foZxCvA3FCRIwSRwdfJ2VdCgNG/rcs5oCmXvDiNVbDhr7Q/KRRAXCfScgxS3JBDPCGX1tUFcPP+op/OBjK6Hi5TlAFTVQA+pBGkvAplmJ14hjyxZwIJY9/7S5XFDh/8kdQrO1XRCxZPfirBbbl+pqAdhaC321Lprz2XTPmzDJRuiHGGHb5Z5M71vr7MjvVx+WD9oG7iK9chHtaLYcHtftwe81xBilMRspYQjtgx9xL5fiIUrFYywPH0aKjB+B9MyKqvW7uBJk0uxtgec8oe0jO/fK6sRrAeRzZnTqlhyls35VEQfpvoz/ii7i1kAAXwIDAQAB";
     private IDownloaderService remoteService;
-
-    // Generate your own 20 random bytes, and put them here.
-    private static final byte[] SALT = new byte[] {
-            -46, 65, 30, -128, -103, -57, 74, -64, 51, 88, -95, -45, 77, -117, -36, -113, -11, 32, -64,
-            89
-    };
-
-    private LicenseCheckerCallback mLicenseCheckerCallback;
-    private LicenseChecker mChecker;
-    // A handler on the UI thread.
-    private Handler mHandler;
     private IStub downloaderClientStub;
+
+    private TextView statusText;
+    private ProgressBar progressBar;
 
     private void downloadObbFile(File obbFile) {
         Log.w("MainActivity", "DOWNLOAD!");
@@ -101,7 +95,7 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
 
     private boolean expansionFilesDelivered() {
         File obbDir = getObbDir();
-        File obbFile = new File(obbDir, "main.1.org.ea.expansionfiletest.obb");
+        File obbFile = new File(obbDir, FILENAME);
         return obbFile.exists();
     }
 
@@ -112,12 +106,16 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        statusText = findViewById(R.id.textView);
+        progressBar = findViewById(R.id.progressBar);
+        progressBar.setMax(100);
+
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 File obbDir = getObbDir();
-                File obbFile = new File(obbDir, "main.1.org.ea.expansionfiletest.obb");
+                File obbFile = new File(obbDir, FILENAME);
                 if(obbFile.exists()) {
                     checkForVideo(obbFile);
                 } else {
@@ -126,21 +124,6 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
                 }
             }
         });
-
-        mHandler = new Handler();
-
-        // Try to use more data here. ANDROID_ID is a single point of attack.
-        String deviceId = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
-
-        // Library calls this when it's done.
-        mLicenseCheckerCallback = new MyLicenseCheckerCallback();
-        // Construct the LicenseChecker with a policy.
-        mChecker = new LicenseChecker(
-                this, new APKExpansionPolicy(this,
-                new AESObfuscator(SALT, getPackageName(), deviceId)),
-                BASE64_PUBLIC_KEY);
-
-        //doCheck();
 
         try {
             // Check if expansion files are available before going any further
@@ -173,25 +156,27 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
         }
     }
 
+
+    /**
+     * Connect the stub to our service on start.
+     */
     @Override
-    protected void onResume() {
+    protected void onStart() {
         if (null != downloaderClientStub) {
             downloaderClientStub.connect(this);
         }
-        super.onResume();
+        super.onStart();
     }
 
+    /**
+     * Disconnect the stub from our service on stop
+     */
     @Override
     protected void onStop() {
         if (null != downloaderClientStub) {
             downloaderClientStub.disconnect(this);
         }
         super.onStop();
-    }
-
-    private void doCheck() {
-        setProgressBarIndeterminateVisibility(true);
-        mChecker.checkAccess(mLicenseCheckerCallback);
     }
 
     @Override
@@ -202,55 +187,62 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
 
     @Override
     public void onDownloadStateChanged(int newState) {
-        Log.w("DOWNLOAD", "Status " + newState);
+
+        switch (newState) {
+            case IDownloaderClient.STATE_IDLE:
+                // STATE_IDLE means the service is listening, so it's
+                // safe to start making calls via mRemoteService.
+                statusText.setText("UDLE");
+                break;
+            case IDownloaderClient.STATE_CONNECTING:
+                statusText.setText("CONNECTING");
+                break;
+            case IDownloaderClient.STATE_FETCHING_URL:
+                statusText.setText("FETCHING URL");
+                break;
+            case IDownloaderClient.STATE_DOWNLOADING:
+                statusText.setText( "DOWNLOADING");
+                break;
+            case IDownloaderClient.STATE_FAILED_CANCELED:
+                statusText.setText("Canceled");
+                break;
+            case IDownloaderClient.STATE_FAILED:
+                statusText.setText("Failed");
+                break;
+            case IDownloaderClient.STATE_FAILED_FETCHING_URL:
+                statusText.setText("Failed fetch");
+                break;
+            case IDownloaderClient.STATE_FAILED_UNLICENSED:
+                statusText.setText("Failed unlicensed");
+                break;
+            case IDownloaderClient.STATE_PAUSED_NEED_CELLULAR_PERMISSION:
+                statusText.setText( "Need cellular permission");
+            case IDownloaderClient.STATE_PAUSED_WIFI_DISABLED_NEED_CELLULAR_PERMISSION:
+                statusText.setText("Wifi disabled need cellular permission");
+                break;
+            case IDownloaderClient.STATE_PAUSED_BY_REQUEST:
+                statusText.setText("Paused by request");
+                break;
+            case IDownloaderClient.STATE_PAUSED_ROAMING:
+                statusText.setText("Paused roaming");
+            case IDownloaderClient.STATE_PAUSED_SDCARD_UNAVAILABLE:
+                statusText.setText("SDCard unavailable");
+                break;
+            case IDownloaderClient.STATE_COMPLETED:
+                statusText.setText("State completed");
+                return;
+            default:
+                statusText.setText("Unknown state");
+        }
     }
 
     @Override
     public void onDownloadProgress(DownloadProgressInfo progress) {
-        Log.w("DOWNLOAD", "Progress " + progress.mOverallProgress);
-    }
-
-
-    private class MyLicenseCheckerCallback implements LicenseCheckerCallback {
-        public void allow(int policyReason) {
-            if (isFinishing()) {
-                return;
-            }
-
-            displayResult("ALLOWED");
-        }
-
-        public void dontAllow(int policyReason) {
-            if (isFinishing()) {
-                return;
-            }
-            displayResult("NOT ALLOWED");
-        }
-
-        public void applicationError(int errorCode) {
-            if (isFinishing()) {
-                return;
-            }
-
-            String result = String.format("Application error %d", errorCode);
-            displayResult(result);
-        }
-    }
-
-    private void displayResult(final String result) {
-        mHandler.post(new Runnable() {
-            public void run() {
-                Log.w("DISPLAY", result);
-                setProgressBarIndeterminateVisibility(false);
-                Toast.makeText(getApplication(), result, Toast.LENGTH_LONG);
-            }
-        });
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        mChecker.onDestroy();
+        double progressDouble = (double)progress.mOverallProgress / 1520625009d * 100d;
+        int progressVal = (int)progressDouble;
+        Log.w("DOWNLOAD", "PROGRESS " + progressDouble);
+        Log.w("DOWNLOAD", "PROGRESS " + progressVal);
+        progressBar.setProgress(progressVal);
     }
 
     @Override
