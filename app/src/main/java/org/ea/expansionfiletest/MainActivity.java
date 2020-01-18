@@ -36,6 +36,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -103,15 +104,13 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
 
         statusText = findViewById(R.id.textView);
         progressBar = findViewById(R.id.progressBar);
         progressBar.setMax(100);
 
-        FloatingActionButton fab = findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
+        Button play_button = findViewById(R.id.play);
+        play_button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 File obbDir = getObbDir();
@@ -217,6 +216,7 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
                 break;
             case IDownloaderClient.STATE_PAUSED_NEED_CELLULAR_PERMISSION:
                 statusText.setText( "Need cellular permission");
+                break;
             case IDownloaderClient.STATE_PAUSED_WIFI_DISABLED_NEED_CELLULAR_PERMISSION:
                 statusText.setText("Wifi disabled need cellular permission");
                 break;
@@ -225,6 +225,7 @@ public class MainActivity extends AppCompatActivity implements IDownloaderClient
                 break;
             case IDownloaderClient.STATE_PAUSED_ROAMING:
                 statusText.setText("Paused roaming");
+                break;
             case IDownloaderClient.STATE_PAUSED_SDCARD_UNAVAILABLE:
                 statusText.setText("SDCard unavailable");
                 break;
